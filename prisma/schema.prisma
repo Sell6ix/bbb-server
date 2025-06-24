@@ -1,0 +1,48 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  BRO
+  MEMBER
+  ADMIN
+}
+
+enum ApplicationType {
+  MEMBER
+  ADMIN
+}
+
+enum ApplicationStatus {
+  PENDING
+  WAITING_VOTES
+  WAITING_UNANIMOUS
+  APPROVED
+  CANCELLED 
+}
+
+model User {
+  id           String         @id @default(uuid())
+  username     String         @unique
+  passwordHash String
+  role         Role           @default(BRO)
+  createdAt    DateTime       @default(now())
+  submitted    Application[]  @relation("SubmittedApplications")
+  approvals    Application[]  @relation("ApprovedApplications")
+}
+
+model Application {
+  id            Int                @id @default(autoincrement())
+  createdAt     DateTime           @default(now())
+  targetUser    String
+  type          ApplicationType
+  status        ApplicationStatus  @default(PENDING)
+  submittedBy   User               @relation("SubmittedApplications", fields: [submittedById], references: [id])
+  submittedById String
+  approvers     User[]             @relation("ApprovedApplications")
+}
