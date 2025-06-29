@@ -1,7 +1,7 @@
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums/role.enum';
-import { ApplicationType } from '@prisma/client';
+import { ApplicationType } from '@prisma/client'
 
 @Injectable()
 export class ApplicationValidatorService {
@@ -43,7 +43,7 @@ export class ApplicationValidatorService {
     }
 
     const existingApp = await this.prisma.application.findFirst({
-      where: { targetUser: targetUsername, type },
+      where: { targetUser: targetUsername, type, status: {notIn: ["APPROVED", "CANCELLED"]}  },
     });
 
     if (existingApp) {

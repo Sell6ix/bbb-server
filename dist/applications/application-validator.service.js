@@ -21,32 +21,32 @@ let ApplicationValidatorService = class ApplicationValidatorService {
     }
     async validateCreation(submitter, targetUsername, type) {
         if (submitter.username === targetUsername) {
-            throw new common_1.ForbiddenException('You cannot submit an application for yourself');
+            throw new common_1.ForbiddenException('You cannot create an application for yourself');
         }
         if (submitter.role === role_enum_1.Role.MEMBER && type !== client_1.ApplicationType.MEMBER) {
-            throw new common_1.ForbiddenException('Members can only submit MEMBER applications');
+            throw new common_1.ForbiddenException('As a MEMBER, you can only create MEMBER applications');
         }
         if (![role_enum_1.Role.ADMIN, role_enum_1.Role.MEMBER].includes(submitter.role)) {
-            throw new common_1.ForbiddenException('More permissions are required to submit an application');
+            throw new common_1.ForbiddenException('You need higher permissions to create an application');
         }
         const target = await this.prisma.user.findUnique({ where: { username: targetUsername } });
         if (!target)
-            throw new common_1.NotFoundException('Target user not found');
+            throw new common_1.NotFoundException('User not found');
         if (type === client_1.ApplicationType.ADMIN && target.role === role_enum_1.Role.BRO) {
-            throw new common_1.ForbiddenException('Target must first be a MEMBER before applying for ADMIN');
+            throw new common_1.ForbiddenException('User must become MEMBER before applying for ADMIN');
         }
         if (type === client_1.ApplicationType.MEMBER && target.role === role_enum_1.Role.ADMIN) {
-            throw new common_1.ForbiddenException('Cannot downgrade an ADMIN to MEMBER');
+            throw new common_1.ForbiddenException('Cannot change an ADMIN to MEMBER');
         }
         if ((type === client_1.ApplicationType.MEMBER && target.role === role_enum_1.Role.MEMBER) ||
             (type === client_1.ApplicationType.ADMIN && target.role === role_enum_1.Role.ADMIN)) {
-            throw new common_1.ForbiddenException('Target user already has this role');
+            throw new common_1.ForbiddenException('User already has this role');
         }
         const existingApp = await this.prisma.application.findFirst({
-            where: { targetUser: targetUsername, type },
+            where: { targetUser: targetUsername, type, status: { notIn: ["APPROVED", "CANCELLED"] } },
         });
         if (existingApp) {
-            throw new common_1.ForbiddenException(`An active ${type} application already exists for this user`);
+            throw new common_1.ForbiddenException(`There is already an active ${type} application for this user`);
         }
     }
 };
