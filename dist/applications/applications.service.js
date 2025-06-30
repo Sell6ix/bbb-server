@@ -43,18 +43,29 @@ let ApplicationsService = class ApplicationsService {
         }));
     }
     async all() {
+        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminIds = admins.map(a => a.id);
         const apps = await this.prisma.application.findMany({
             include: {
                 submittedBy: { select: { username: true } },
-                approvers: { select: { username: true } },
+                approvers: { select: { username: true, id: true } },
             },
         });
-        return apps.map(app => ({
-            ...app,
-            status: app.status,
-            submittedBy: app.submittedBy.username,
-            votes: app.approvers.map(a => a.username),
-        }));
+        return apps.map(app => {
+            const votes = app.approvers.map(a => a.username);
+            const approverIds = app.approvers.map(a => a.id);
+            const votesRequired = app.type === 'ADMIN'
+                ? adminIds.length
+                : app.type === 'MEMBER'
+                    ? 2
+                    : 0;
+            return {
+                ...app,
+                submittedBy: app.submittedBy.username,
+                votes,
+                votesRequired,
+            };
+        });
     }
     async create(submitter, targetUsername, type) {
         await this.validator.validateCreation(submitter, targetUsername, type);
@@ -70,7 +81,9 @@ let ApplicationsService = class ApplicationsService {
             },
             include: { approvers: true },
         });
-        const status = this.computeStatus(app);
+        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminIds = admins.map(a => a.id);
+        const status = this.votingService.computeStatus(app, adminIds);
         const updatedApp = await this.prisma.application.update({
             where: { id: app.id },
             data: { status },
@@ -86,14 +99,10 @@ let ApplicationsService = class ApplicationsService {
         };
     }
     async vote(user, applicationId) {
-        const app = await this.votingService.vote(user.userId, applicationId);
-        await this.updateStatus(applicationId);
-        return app;
+        return this.votingService.vote(user.userId, applicationId);
     }
     async unvote(user, applicationId) {
-        const app = await this.votingService.unvote(user.userId, applicationId);
-        await this.updateStatus(applicationId);
-        return app;
+        return this.votingService.unvote(user.userId, applicationId);
     }
     async delete(submitterId, id) {
         const app = await this.prisma.application.findUnique({ where: { id } });
@@ -101,7 +110,7 @@ let ApplicationsService = class ApplicationsService {
             throw new common_1.ForbiddenException();
         await this.prisma.application.update({
             where: { id },
-            data: { status: client_1.ApplicationStatus.CANCELLED },
+            data: { status: client_1.ApplicationStatus.DELETED },
         });
     }
     async getTargeted(username) {
@@ -119,14 +128,6 @@ let ApplicationsService = class ApplicationsService {
             votes: app.approvers.map(a => a.username),
         }));
     }
-    computeStatus(app) {
-        const v = app.approvers.length;
-        if (app.type === client_1.ApplicationType.ADMIN)
-            return v === 3 ? client_1.ApplicationStatus.APPROVED : client_1.ApplicationStatus.WAITING_UNANIMOUS;
-        if (app.type === client_1.ApplicationType.MEMBER)
-            return v >= 2 ? client_1.ApplicationStatus.APPROVED : client_1.ApplicationStatus.WAITING_VOTES;
-        return client_1.ApplicationStatus.PENDING;
-    }
     async updateStatus(applicationId) {
         const app = await this.prisma.application.findUnique({
             where: { id: applicationId },
@@ -134,7 +135,9 @@ let ApplicationsService = class ApplicationsService {
         });
         if (!app)
             throw new common_1.NotFoundException();
-        const status = this.computeStatus(app);
+        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminIds = admins.map(a => a.id);
+        const status = this.votingService.computeStatus(app, adminIds);
         await this.prisma.application.update({
             where: { id: applicationId },
             data: { status },

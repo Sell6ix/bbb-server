@@ -1,8 +1,12 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { ApplicationStatus, Application, User } from '@prisma/client';
 export declare class VotingService {
     private prisma;
     constructor(prisma: PrismaService);
-    private computeStatus;
+    private allAdminsVoted;
+    computeStatus(app: Application & {
+        approvers: User[];
+    }, adminIds: string[]): ApplicationStatus;
     vote(userId: string, appId: number): Promise<{
         submittedBy: string;
         votes: string[];

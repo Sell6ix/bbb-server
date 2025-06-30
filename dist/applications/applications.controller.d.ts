@@ -18,16 +18,18 @@ export declare class ApplicationsController {
         submittedById: string;
     }[]>;
     all(): Promise<{
-        status: import(".prisma/client").$Enums.ApplicationStatus;
         submittedBy: string;
         votes: string[];
+        votesRequired: number;
         approvers: {
+            id: string;
             username: string;
         }[];
         id: number;
         createdAt: Date;
         targetUser: string;
         type: import(".prisma/client").$Enums.ApplicationType;
+        status: import(".prisma/client").$Enums.ApplicationStatus;
         submittedById: string;
     }[]>;
     create(req: any, body: {

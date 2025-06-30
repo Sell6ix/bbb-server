@@ -37,20 +37,35 @@ export class ApplicationsService {
   }
 
   async all() {
-    const apps = await this.prisma.application.findMany({
-      include: {
-        submittedBy: { select: { username: true } },
-        approvers: { select: { username: true } },
-      },
-    });
+  const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+  const adminIds = admins.map(a => a.id);
 
-    return apps.map(app => ({
+  const apps = await this.prisma.application.findMany({
+    include: {
+      submittedBy: { select: { username: true } },
+      approvers: { select: { username: true, id: true } },
+    },
+  });
+
+  return apps.map(app => {
+    const votes = app.approvers.map(a => a.username);
+    const approverIds = app.approvers.map(a => a.id);
+
+    const votesRequired = app.type === 'ADMIN'
+      ? adminIds.length
+      : app.type === 'MEMBER'
+        ? 2
+        : 0;
+
+    return {
       ...app,
-      status: app.status,
       submittedBy: app.submittedBy.username,
-      votes: app.approvers.map(a => a.username),
-    }));
-  }
+      votes,
+      votesRequired,
+    };
+  });
+}
+
 
   async create(
     submitter: { userId: string; username: string; role: Role },
@@ -74,7 +89,10 @@ export class ApplicationsService {
       include: { approvers: true },
     });
 
-    const status = this.computeStatus(app);
+    const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+    const adminIds = admins.map(a => a.id);
+    const status = this.votingService.computeStatus(app, adminIds);
+
 
     const updatedApp = await this.prisma.application.update({
       where: { id: app.id },
@@ -93,15 +111,11 @@ export class ApplicationsService {
   }
 
   async vote(user: any, applicationId: number) {
-    const app = await this.votingService.vote(user.userId, applicationId);
-    await this.updateStatus(applicationId);
-    return app;
+    return this.votingService.vote(user.userId, applicationId);
   }
 
   async unvote(user: any, applicationId: number) {
-    const app = await this.votingService.unvote(user.userId, applicationId);
-    await this.updateStatus(applicationId);
-    return app;
+    return this.votingService.unvote(user.userId, applicationId);
   }
 
   async delete(submitterId: string, id: number) {
@@ -109,7 +123,7 @@ export class ApplicationsService {
     if (!app || app.submittedById !== submitterId) throw new ForbiddenException();
     await this.prisma.application.update({
       where: { id },
-      data: { status: ApplicationStatus.CANCELLED },
+      data: { status: ApplicationStatus.DELETED },
     });
   }
 
@@ -130,25 +144,22 @@ export class ApplicationsService {
     }));
   }
 
-  private computeStatus(app: Application & { approvers: User[] }): ApplicationStatus {
-    const v = app.approvers.length;
-    if (app.type === ApplicationType.ADMIN)   return v === 3 ? ApplicationStatus.APPROVED : ApplicationStatus.WAITING_UNANIMOUS;
-    if (app.type === ApplicationType.MEMBER)  return v >= 2 ? ApplicationStatus.APPROVED : ApplicationStatus.WAITING_VOTES;
-    return ApplicationStatus.PENDING;
-  }
 
   private async updateStatus(applicationId: number) {
     const app = await this.prisma.application.findUnique({
-      where: { id: applicationId },
-      include: { approvers: true },
-    });
-    if (!app) throw new NotFoundException();
+  where: { id: applicationId },
+  include: { approvers: true },
+});
+if (!app) throw new NotFoundException();
 
-    const status = this.computeStatus(app);
-    await this.prisma.application.update({
-      where: { id: applicationId },
-      data: { status },
-    });
+const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+const adminIds = admins.map(a => a.id);
+const status = this.votingService.computeStatus(app, adminIds);
+
+await this.prisma.application.update({
+  where: { id: applicationId },
+  data: { status },
+});
   }
 
   async remove(id: number) {

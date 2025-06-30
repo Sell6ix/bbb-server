@@ -43,7 +43,7 @@ let ApplicationValidatorService = class ApplicationValidatorService {
             throw new common_1.ForbiddenException('User already has this role');
         }
         const existingApp = await this.prisma.application.findFirst({
-            where: { targetUser: targetUsername, type, status: { notIn: ["APPROVED", "CANCELLED"] } },
+            where: { targetUser: targetUsername, type, status: { notIn: ["APPROVED", "DELETED"] } },
         });
         if (existingApp) {
             throw new common_1.ForbiddenException(`There is already an active ${type} application for this user`);

@@ -22,16 +22,18 @@ export declare class ApplicationsService {
         submittedById: string;
     }[]>;
     all(): Promise<{
-        status: import(".prisma/client").$Enums.ApplicationStatus;
         submittedBy: string;
         votes: string[];
+        votesRequired: number;
         approvers: {
+            id: string;
             username: string;
         }[];
         id: number;
         createdAt: Date;
         targetUser: string;
         type: import(".prisma/client").$Enums.ApplicationType;
+        status: import(".prisma/client").$Enums.ApplicationStatus;
         submittedById: string;
     }[]>;
     create(submitter: {
@@ -91,7 +93,6 @@ export declare class ApplicationsService {
         type: import(".prisma/client").$Enums.ApplicationType;
         submittedById: string;
     }[]>;
-    private computeStatus;
     private updateStatus;
     remove(id: number): Promise<{
         id: number;

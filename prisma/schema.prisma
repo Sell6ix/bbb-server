@@ -23,7 +23,7 @@ enum ApplicationStatus {
   WAITING_VOTES
   WAITING_UNANIMOUS
   APPROVED
-  CANCELLED 
+  DELETED 
 }
 
 model User {

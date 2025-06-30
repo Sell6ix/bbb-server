@@ -18,12 +18,20 @@ let VotingService = class VotingService {
     constructor(prisma) {
         this.prisma = prisma;
     }
-    computeStatus(app) {
-        const votes = app.approvers.length;
-        if (app.type === 'ADMIN')
-            return votes === 3 ? client_1.ApplicationStatus.APPROVED : client_1.ApplicationStatus.WAITING_UNANIMOUS;
-        if (app.type === 'MEMBER')
+    allAdminsVoted(approverIds, adminIds) {
+        return adminIds.every(id => approverIds.includes(id));
+    }
+    computeStatus(app, adminIds) {
+        const approverIds = app.approvers.map(a => a.id);
+        console.log('Application type:', app.type);
+        if (app.type === 'ADMIN') {
+            const allAdminVoted = this.allAdminsVoted(approverIds, adminIds);
+            return allAdminVoted ? client_1.ApplicationStatus.APPROVED : client_1.ApplicationStatus.WAITING_UNANIMOUS;
+        }
+        if (app.type === 'MEMBER') {
+            const votes = approverIds.filter(id => adminIds.includes(id)).length;
             return votes >= 2 ? client_1.ApplicationStatus.APPROVED : client_1.ApplicationStatus.WAITING_VOTES;
+        }
         return client_1.ApplicationStatus.PENDING;
     }
     async vote(userId, appId) {
@@ -33,28 +41,39 @@ let VotingService = class VotingService {
         });
         if (!app)
             throw new common_1.NotFoundException('Application not found');
-        const updatedApp = await this.prisma.application.update({
+        const adminsBefore = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminIdsBefore = adminsBefore.map(a => a.id);
+        console.log('adminsBefore', adminsBefore);
+        let updatedApp = await this.prisma.application.update({
             where: { id: appId },
             data: {
                 approvers: { connect: { id: userId } },
             },
             include: { approvers: true },
         });
-        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
-        const adminIds = admins.map(a => a.id);
         const approverIds = updatedApp.approvers.map(a => a.id);
-        if (app.type === 'MEMBER' &&
-            approverIds.filter(id => adminIds.includes(id)).length >= 2) {
-            await this.promoteTarget(app.targetUser, client_1.Role.MEMBER);
-        }
-        if (app.type === 'ADMIN' &&
-            adminIds.every(id => approverIds.includes(id))) {
+        let status;
+        const allAdminsVoted = this.allAdminsVoted(approverIds, adminIdsBefore);
+        if (app.type === 'ADMIN' && allAdminsVoted) {
             await this.promoteTarget(app.targetUser, client_1.Role.ADMIN);
+            status = client_1.ApplicationStatus.APPROVED;
         }
-        const status = this.computeStatus(updatedApp);
+        else if (app.type === 'MEMBER') {
+            const votes = approverIds.filter(id => adminIdsBefore.includes(id)).length;
+            if (votes >= 2) {
+                await this.promoteTarget(app.targetUser, client_1.Role.MEMBER);
+                status = client_1.ApplicationStatus.APPROVED;
+            }
+            else {
+                status = client_1.ApplicationStatus.WAITING_VOTES;
+            }
+        }
+        else {
+            status = this.computeStatus(updatedApp, adminIdsBefore);
+        }
         const finalApp = await this.prisma.application.update({
             where: { id: appId },
-            data: { status: status },
+            data: { status },
             include: {
                 submittedBy: { select: { username: true } },
                 approvers: { select: { username: true } },
@@ -74,7 +93,9 @@ let VotingService = class VotingService {
             },
             include: { approvers: true },
         });
-        const status = this.computeStatus(app);
+        const admins = await this.prisma.user.findMany({ where: { role: 'ADMIN' } });
+        const adminIds = admins.map(a => a.id);
+        const status = this.computeStatus(app, adminIds);
         const finalApp = await this.prisma.application.update({
             where: { id: appId },
             data: { status: status },

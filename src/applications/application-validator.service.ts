@@ -43,7 +43,7 @@ export class ApplicationValidatorService {
     }
 
     const existingApp = await this.prisma.application.findFirst({
-      where: { targetUser: targetUsername, type, status: {notIn: ["APPROVED", "CANCELLED"]}  },
+      where: { targetUser: targetUsername, type, status: {notIn: ["APPROVED", "DELETED"]}  },
     });
 
     if (existingApp) {
