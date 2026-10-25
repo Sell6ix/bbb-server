@@ -3,12 +3,12 @@ import { JwtAuthGuard } from '../common/guards/jwt-auth.guard';
 import { PrismaService } from '../prisma/prisma.service';
 import { Role } from '../common/enums/role.enum'
 @Controller('users')
+@UseGuards(JwtAuthGuard)
 export class UsersController {
 
   constructor(private prisma: PrismaService) {}
 
   @Get('me')
-  @UseGuards(JwtAuthGuard)
   getMe(@Req() req) {
     console.log('REQ.USER:', req.user);
     const userId = req.user.userId;
