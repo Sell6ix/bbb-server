@@ -24,11 +24,20 @@ Requirements: Node.js and npm.
 
 ```bash
 npm ci
+cp .env.example .env        # then set JWT_SECRET (openssl rand -base64 48)
 npx prisma generate
+npx prisma migrate deploy   # creates prisma/dev.db
 npm run start:dev
 ```
 
-The API listens on `http://localhost:3000`. The SQLite database is `prisma/dev.db`. To start with an empty database, delete that file and run `npx prisma migrate deploy`.
+The API listens on `http://localhost:3000`. The SQLite database is `prisma/dev.db` and is not tracked in Git.
+
+| Variable | Description |
+|---|---|
+| `JWT_SECRET` | **Required.** Secret used to sign JWTs; the server refuses to start without it |
+| `ALLOW_REGISTRATION` | Let `/auth/login` create an account for an unknown username. Defaults to `true` outside production and `false` when `NODE_ENV=production` |
+
+With registration disabled there is no endpoint for creating users yet, so create the first accounts while it is enabled.
 
 Run the client from [bbb-client](https://github.com/Sell6ix/bbb-client) to get a UI.
 
@@ -41,8 +50,8 @@ npm run build
 
 | Method | Path | Access | Description |
 |---|---|---|---|
-| POST | `/auth/login` | public | Returns a JWT. An unknown username is registered as a `BRO` |
-| GET | `/users`, `/users/:username` | public | List users (optional `?role=`) or get one |
+| POST | `/auth/login` | public | Returns a JWT. An unknown username is registered as a `BRO` only when registration is allowed |
+| GET | `/users`, `/users/:username` | JWT | List users (optional `?role=`) or get one |
 | GET | `/users/me` | JWT | Current user |
 | GET | `/applications/mine` | JWT | Applications submitted by the current user |
 | GET | `/applications/targeting/:username` | JWT | Applications about a given user |
@@ -53,4 +62,4 @@ npm run build
 
 ## Status
 
-This is a learning/demo project and is not production-ready: the JWT secret is hardcoded in `src/auth` and `/auth/login` creates accounts on first use. Move the secret to an environment variable before deploying anywhere public.
+This is a learning/demo project. Registration on first login is meant for local development; there is no separate sign-up endpoint, no rate limiting and no password policy yet, so do not expose it publicly as is.
